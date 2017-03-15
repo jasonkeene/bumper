@@ -209,14 +209,20 @@ func isAccepted(commits []*Commit) {
 	// TODO: dedupe these so we don't hit the api with multiples of the same
 	// story ids
 	ids := make([]string, 0)
+	idsTracked := make(map[int]struct{}, 0)
 	for _, c := range commits {
+		if _, ok := idsTracked[c.StoryID]; ok {
+			continue
+		}
 		ids = append(ids, strconv.Itoa(c.StoryID))
+		idsTracked[c.StoryID] = struct{}{}
 	}
 	filter := strings.Join(ids, " OR ")
 	v := url.Values{}
 	v.Set("filter", filter)
 
 	url := fmt.Sprintf(urlTemplate, projectID, v.Encode())
+	printlnVerbose("getting url: ", url)
 
 	// make request
 	res, err := http.Get(url)
@@ -233,6 +239,7 @@ func isAccepted(commits []*Commit) {
 	stories := make([]Story, len(commits))
 	err = json.Unmarshal(bytes, &stories)
 	if err != nil {
+		printlnVerbose("invalid response from api: ", string(bytes))
 		log.Fatal(err)
 	}
 
