@@ -11,22 +11,21 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"regexp"
 	"strconv"
-	"strings"
 	"time"
 )
 
 var (
 	commitRange string
 	trackerKey  string
-	projectID   int
 	verbose     bool
 	reStoryID   = regexp.MustCompile(`\[#(\d+)\]`)
 )
+
+const urlTemplate = "https://www.pivotaltracker.com/services/v5/stories/%d"
 
 type Commit struct {
 	Hash    string
@@ -56,15 +55,10 @@ func randomPrinceQuote() string {
 }
 
 func main() {
-	// validate tracker api key and project id were set
+	// validate tracker api key is set
 	trackerKey = os.Getenv("TRACKER_KEY")
 	if trackerKey == "" {
 		log.Fatalf("Invalid Tracker Key")
-	}
-	var err error
-	projectID, err = strconv.Atoi(os.Getenv("PROJECT_ID"))
-	if err != nil {
-		log.Fatalf("Invalid Project ID: %s", err)
 	}
 
 	// figure out ranges default to master..release-elect
@@ -75,9 +69,10 @@ func main() {
 	cmd := exec.Command("git", "log", "--pretty=format:%H", commitRange)
 	out := &bytes.Buffer{}
 	cmd.Stdout = out
-	err = cmd.Run()
+	cmd.Stderr = &bytes.Buffer{}
+	err := cmd.Run()
 	if err != nil {
-		log.Fatalf("Unable to run command: %s", err)
+		log.Fatalf("Unable to run command: %s\nstdout: %s\nstderr: %s", err, out, cmd.Stderr)
 	}
 	commits := getCommits(out)
 
@@ -168,9 +163,10 @@ func getSubjects(commits []*Commit) {
 		cmd := exec.Command("git", "show", "--no-patch", "--pretty=format:%s", c.Hash)
 		out := &bytes.Buffer{}
 		cmd.Stdout = out
+		cmd.Stderr = &bytes.Buffer{}
 		err := cmd.Run()
 		if err != nil {
-			log.Fatalf("Unable to run command: %s", err)
+			log.Fatalf("Unable to run command: %s\nstdout: %s\nstderr: %s", err, out, cmd.Stderr)
 		}
 		c.Subject = out.String()
 	}
@@ -181,9 +177,10 @@ func getStoryIDs(commits []*Commit) {
 		cmd := exec.Command("git", "show", "--no-patch", "--pretty=format:%B", c.Hash)
 		out := &bytes.Buffer{}
 		cmd.Stdout = out
+		cmd.Stderr = &bytes.Buffer{}
 		err := cmd.Run()
 		if err != nil {
-			log.Fatalf("Unable to run command: %s", err)
+			log.Fatalf("Unable to run command: %s\nstdout: %s\nstderr: %s", err, out, cmd.Stderr)
 		}
 		c.StoryID = getStoryID(out.String())
 	}
@@ -202,29 +199,10 @@ func getStoryID(body string) int {
 	return id
 }
 
-func isAccepted(commits []*Commit) {
-	const urlTemplate = "https://www.pivotaltracker.com/services/v5/projects/%d/stories?%s"
-
-	// build filter
-	// TODO: dedupe these so we don't hit the api with multiples of the same
-	// story ids
-	ids := make([]string, 0)
-	idsTracked := make(map[int]struct{}, 0)
-	for _, c := range commits {
-		if _, ok := idsTracked[c.StoryID]; ok {
-			continue
-		}
-		ids = append(ids, strconv.Itoa(c.StoryID))
-		idsTracked[c.StoryID] = struct{}{}
-	}
-	filter := strings.Join(ids, " OR ")
-	v := url.Values{}
-	v.Set("filter", filter)
-
-	url := fmt.Sprintf(urlTemplate, projectID, v.Encode())
+func getStory(id int, stories chan<- Story) {
+	url := fmt.Sprintf(urlTemplate, id)
 	printlnVerbose("getting url: ", url)
 
-	// make request
 	res, err := http.Get(url)
 	if err != nil {
 		log.Fatal(err)
@@ -235,21 +213,37 @@ func isAccepted(commits []*Commit) {
 		log.Fatal(err)
 	}
 
-	// unmarshal bytes
-	stories := make([]Story, len(commits))
-	err = json.Unmarshal(bytes, &stories)
+	var story Story
+	err = json.Unmarshal(bytes, &story)
 	if err != nil {
 		printlnVerbose("invalid response from api: ", string(bytes))
 		log.Fatal(err)
 	}
 
-	// update commits
+	stories <- story
+}
+
+func isAccepted(commits []*Commit) {
+	ids := make(map[int]struct{}, 0)
 	for _, c := range commits {
 		if c.StoryID == 0 {
-			c.Accepted = true
 			continue
 		}
-		for _, s := range stories {
+		ids[c.StoryID] = struct{}{}
+	}
+
+	stories := make(chan Story, len(ids))
+	for id, _ := range ids {
+		go getStory(id, stories)
+	}
+
+	for i := 0; i < len(ids); i++ {
+		s := <-stories
+		for _, c := range commits {
+			if c.StoryID == 0 {
+				c.Accepted = true
+				continue
+			}
 			if c.StoryID == s.ID {
 				c.StoryName = s.Name
 				if s.State == "accepted" {
