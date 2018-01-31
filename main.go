@@ -16,13 +16,14 @@ import (
 	"regexp"
 	"strconv"
 	"time"
+	"strings"
 )
 
 var (
-	commitRange string
-	trackerKey  string
-	verbose     bool
-	reStoryID   = regexp.MustCompile(`\[#(\d+)\]`)
+	commitRange     string
+	verbose         bool
+	storyID         = regexp.MustCompile(`\[#(\d+)\]`)
+	submoduleCommit = regexp.MustCompile(`\+Subproject commit ([0-9a-f]{40})`)
 )
 
 const urlTemplate = "https://www.pivotaltracker.com/services/v5/stories/%d"
@@ -55,43 +56,48 @@ func randomPrinceQuote() string {
 }
 
 func main() {
-	// validate tracker api key is set
-	trackerKey = os.Getenv("TRACKER_KEY")
+	trackerKey := os.Getenv("TRACKER_KEY")
 	if trackerKey == "" {
 		log.Fatalf("Invalid Tracker Key")
 	}
 
-	// figure out ranges default to master..release-elect
-	flag.Parse()
-	printfVerbose("Bumping the following range of commits: %s\n\n", extraRed(commitRange))
-
-	// collect all commits to check
-	cmd := exec.Command("git", "log", "--pretty=format:%H", commitRange)
-	out := &bytes.Buffer{}
-	cmd.Stdout = out
-	cmd.Stderr = &bytes.Buffer{}
-	err := cmd.Run()
-	if err != nil {
-		log.Fatalf("Unable to run command: %s\nstdout: %s\nstderr: %s", err, out, cmd.Stderr)
-	}
-	commits := getCommits(out)
-
-	// bail out early if we have nothing to bump to
+	commits := getCommitsInRange()
 	if len(commits) == 0 {
 		printlnVerbose("There are no commits to bump!")
 		return
 	}
 
-	// get subjects
+	followBumpsOf := os.Getenv("FOLLOW_BUMPS_OF")
 	getSubjects(commits)
-
-	// parse story ids
-	getStoryIDs(commits)
-
-	// in parallel check those commits against the tracker api
+	getStoryIDs(commits, followBumpsOf)
 	isAccepted(commits)
 
-	// output commit informations
+	outputCommitInformation(commits)
+	commits = sortAscending(commits)
+
+	bumpHash := findBump(commits)
+	if bumpHash == "" {
+		printlnVerbose("There are no commits to bump!")
+		return
+	}
+
+	printfVerbose("This is the commit you should bump to: ")
+	if verbose {
+		fmt.Println(extraRed(bumpHash))
+		return
+	}
+	fmt.Println(bumpHash)
+}
+
+func sortAscending(commits []*Commit) []*Commit {
+	reversed := make([]*Commit, len(commits))
+	for i, c := range commits {
+		reversed[len(commits)-1-i] = c
+	}
+	return reversed
+}
+
+func outputCommitInformation(commits []*Commit) {
 	var maxSubject int
 	for _, c := range commits {
 		if len(c.Subject) > maxSubject {
@@ -122,26 +128,14 @@ func main() {
 		printlnVerbose(mark, yellow(c.Hash[:8]), grey(subject), blue(storyID), grey(storyName))
 	}
 	printlnVerbose()
-
-	// reverse the commits before we find the bump commit
-	reversed := make([]*Commit, len(commits))
-	for i, c := range commits {
-		reversed[len(commits)-1-i] = c
-	}
-	commits = reversed
-
-	// find bump commit and output it
-	bumpHash := findBump(commits)
-	if bumpHash == "" {
-		printlnVerbose("There are no commits to bump!")
-		return
-	}
-	printfVerbose("This is the commit you should bump to: ")
-	if verbose {
-		fmt.Println(extraRed(bumpHash))
-		return
-	}
-	fmt.Println(bumpHash)
+}
+func getCommitsInRange() []*Commit {
+	flag.Parse()
+	printfVerbose("Bumping the following range of commits: %s\n\n", extraRed(commitRange))
+	out := &bytes.Buffer{}
+	execCommand(out, "git", "log", "--pretty=format:%H", commitRange)
+	commits := getCommits(out)
+	return commits
 }
 
 func getCommits(r io.Reader) []*Commit {
@@ -160,34 +154,37 @@ func getCommits(r io.Reader) []*Commit {
 
 func getSubjects(commits []*Commit) {
 	for _, c := range commits {
-		cmd := exec.Command("git", "show", "--no-patch", "--pretty=format:%s", c.Hash)
 		out := &bytes.Buffer{}
-		cmd.Stdout = out
-		cmd.Stderr = &bytes.Buffer{}
-		err := cmd.Run()
-		if err != nil {
-			log.Fatalf("Unable to run command: %s\nstdout: %s\nstderr: %s", err, out, cmd.Stderr)
-		}
+		execCommand(out, "git", "show", "--no-patch", "--pretty=format:%s", c.Hash)
 		c.Subject = out.String()
 	}
 }
 
-func getStoryIDs(commits []*Commit) {
+func getStoryIDs(commits []*Commit, followBumpOf string) {
 	for _, c := range commits {
-		cmd := exec.Command("git", "show", "--no-patch", "--pretty=format:%B", c.Hash)
 		out := &bytes.Buffer{}
-		cmd.Stdout = out
-		cmd.Stderr = &bytes.Buffer{}
-		err := cmd.Run()
-		if err != nil {
-			log.Fatalf("Unable to run command: %s\nstdout: %s\nstderr: %s", err, out, cmd.Stderr)
+		execCommand(out, "git", "show", "--pretty=format:%B", c.Hash)
+		commitMessage := out.String()
+		c.StoryID = getStoryID(commitMessage)
+
+		if c.StoryID == 0 && followBumpOf != "" {
+			c.StoryID = getBumpedStoryId(commitMessage, followBumpOf)
 		}
-		c.StoryID = getStoryID(out.String())
+	}
+}
+
+func execCommand(stdOut *bytes.Buffer, command string, args ...string) {
+	cmd := exec.Command(command, args...)
+	cmd.Stdout = stdOut
+	cmd.Stderr = &bytes.Buffer{}
+	err := cmd.Run()
+	if err != nil {
+		log.Fatalf("Unable to run command: %s\nstdout: %s\nstderr: %s", err, stdOut, cmd.Stderr)
 	}
 }
 
 func getStoryID(body string) int {
-	result := reStoryID.FindStringSubmatch(body)
+	result := storyID.FindStringSubmatch(body)
 	if len(result) < 2 {
 		return 0
 	}
@@ -197,6 +194,23 @@ func getStoryID(body string) int {
 		return 0
 	}
 	return id
+}
+
+func getBumpedStoryId(commitMessage, followBumpOf string) int {
+	if !strings.Contains(commitMessage, "Bump " + followBumpOf) {
+		return 0
+	}
+
+	result := submoduleCommit.FindStringSubmatch(commitMessage)
+	if len(result) < 2 {
+		return 0
+	}
+
+	submoduleCommitHash := result[1]
+	out := &bytes.Buffer{}
+	execCommand(out, "git", "-C", followBumpOf, "show", "--no-patch", "--pretty=format:%B", submoduleCommitHash)
+	submoduleCommitMessage := out.String()
+	return getStoryID(submoduleCommitMessage)
 }
 
 func getStory(id int, stories chan<- Story) {
