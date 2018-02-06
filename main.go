@@ -56,11 +56,6 @@ func randomPrinceQuote() string {
 }
 
 func main() {
-	trackerKey := os.Getenv("TRACKER_KEY")
-	if trackerKey == "" {
-		log.Fatalf("Invalid Tracker Key")
-	}
-
 	commits := getCommitsInRange()
 	if len(commits) == 0 {
 		printlnVerbose("There are no commits to bump!")
