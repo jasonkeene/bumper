@@ -15,8 +15,8 @@ import (
 	"os/exec"
 	"regexp"
 	"strconv"
-	"time"
 	"strings"
+	"time"
 )
 
 var (
@@ -192,7 +192,7 @@ func getStoryID(body string) int {
 }
 
 func getBumpedStoryId(commitMessage, followBumpOf string) int {
-	if !strings.Contains(commitMessage, "Bump " + followBumpOf) {
+	if !strings.Contains(commitMessage, "Bump "+followBumpOf) {
 		return 0
 	}
 
@@ -322,19 +322,19 @@ func printfVerbose(s string, x ...interface{}) {
 }
 
 func red(s string) string {
-	return "\033[38;5;202m" + s + "\033[0m"
+	return "\033[202m" + s + "\033[0m"
 }
 
 func extraRed(s string) string {
-	return "\033[38;5;222m" + s + "\033[0m"
+	return "\033[222m" + s + "\033[0m"
 }
 
 func green(s string) string {
-	return "\033[38;5;82m" + s + "\033[0m"
+	return "\033[82m" + s + "\033[0m"
 }
 
 func blue(s string) string {
-	return "\033[1;34m" + s + "\033[0m"
+	return "\033[34m" + s + "\033[0m"
 }
 
 func yellow(s string) string {
@@ -342,11 +342,11 @@ func yellow(s string) string {
 }
 
 func grey(s string) string {
-	return "\033[38;5;242m" + s + "\033[0m"
+	return "\033[242m" + s + "\033[0m"
 }
 
 func prince(s string) string {
-	return "\033[38;5;92m" + s + "\033[0m"
+	return "\033[92m" + s + "\033[0m"
 }
 
 var dancerToggle bool
