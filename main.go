@@ -155,15 +155,20 @@ func getSubjects(commits []*Commit) {
 	}
 }
 
-func getStoryIDs(commits []*Commit, followBumpOf string) {
+func getStoryIDs(commits []*Commit, followBumpsOf string) {
 	for _, c := range commits {
 		out := &bytes.Buffer{}
 		execCommand(out, "git", "show", "--pretty=format:%B", c.Hash)
 		commitMessage := out.String()
 		c.StoryID = getStoryID(commitMessage)
 
-		if c.StoryID == 0 && followBumpOf != "" {
-			c.StoryID = getBumpedStoryId(commitMessage, followBumpOf)
+		if c.StoryID == 0 && followBumpsOf != "" {
+			for _, bumpsOf := range strings.Split(followBumpsOf, ",") {
+				c.StoryID = getBumpedStoryId(commitMessage, bumpsOf)
+				if c.StoryID != 0 {
+					break
+				}
+			}
 		}
 	}
 }
