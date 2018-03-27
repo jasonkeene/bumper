@@ -14,15 +14,6 @@ var (
 	submoduleCommit = regexp.MustCompile(`\+Subproject commit ([[:xdigit:]]+)\b`)
 )
 
-type Commit struct {
-	Hash    string
-	Subject string
-	// TODO: use a pointer to story here vs denormalizing
-	StoryID   int
-	StoryName string
-	Accepted  bool
-}
-
 type CommandExecutor interface {
 	Run(*exec.Cmd) error
 }

@@ -2,13 +2,13 @@ package main
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"os/exec"
 	"strings"
 
 	"github.com/loggregator/bumper/pkg/bumper"
 	"github.com/loggregator/bumper/pkg/git"
+	"github.com/loggregator/bumper/pkg/logger"
 	"github.com/loggregator/bumper/pkg/tracker"
 )
 
@@ -39,14 +39,16 @@ func main() {
 
 	tc := tracker.NewClient()
 
-	b := bumper.New(*commitRange, *verbose,
+	var log bumper.Logger
+	if *verbose {
+		log = logger.NewVerboseLogger()
+	}
+
+	b := bumper.New(*commitRange, log,
 		bumper.WithGitClient(gc),
 		bumper.WithTrackerClient(tc),
 	)
-	sha, ok := b.FindBumpSHA()
-	if ok {
-		fmt.Println(sha)
-	}
+	b.FindBumpSHA()
 }
 
 type cmdExecutor struct{}

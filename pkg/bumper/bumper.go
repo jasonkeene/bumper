@@ -9,20 +9,27 @@ type GitClient interface {
 }
 
 type TrackerClient interface {
-	IsAccepted(storyNumber int) bool
+	IsAccepted(storyID int) bool
+	Name(storyID int) string
+}
+
+type Logger interface {
+	Header(commitRange string)
+	Commit(c *git.Commit)
+	Footer(bumpSHA string)
 }
 
 type Bumper struct {
 	commitRange string
-	verbose     bool
 	gc          GitClient
 	tc          TrackerClient
+	log         Logger
 }
 
-func New(commitRange string, verbose bool, opts ...BumperOption) Bumper {
+func New(commitRange string, log Logger, opts ...BumperOption) Bumper {
 	b := Bumper{
 		commitRange: commitRange,
-		verbose:     verbose,
+		log:         log,
 	}
 
 	for _, o := range opts {
@@ -32,17 +39,27 @@ func New(commitRange string, verbose bool, opts ...BumperOption) Bumper {
 	return b
 }
 
-func (b Bumper) FindBumpSHA() (string, bool) {
+func (b Bumper) FindBumpSHA() string {
+	b.log.Header(b.commitRange)
+
 	commitsDesc, err := b.gc.Commits(b.commitRange)
 	if err != nil {
-		return "", false
+		b.log.Footer("")
+		return ""
 	}
 
 	for _, c := range commitsDesc {
 		c.Accepted = b.tc.IsAccepted(c.StoryID)
+		c.StoryName = b.tc.Name(c.StoryID)
 	}
 
-	return findBump(reverse(commitsDesc))
+	for _, c := range commitsDesc {
+		b.log.Commit(c)
+	}
+
+	sha := findBump(reverse(commitsDesc))
+	b.log.Footer(sha)
+	return sha
 }
 
 func reverse(commits []*git.Commit) []*git.Commit {
@@ -53,7 +70,7 @@ func reverse(commits []*git.Commit) []*git.Commit {
 	return reversed
 }
 
-func findBump(commits []*git.Commit) (string, bool) {
+func findBump(commits []*git.Commit) string {
 	invalid := make(map[int]bool)
 	firstUnaccepted := -1
 	bumpHash := ""
@@ -69,7 +86,7 @@ func findBump(commits []*git.Commit) (string, bool) {
 	// return early if all stories are accepted
 	if firstUnaccepted == -1 {
 		// this shouldn't panic since len(commits) is always > 0
-		return commits[len(commits)-1].Hash, true
+		return commits[len(commits)-1].Hash
 	}
 
 	// record invalid stories
@@ -88,7 +105,7 @@ func findBump(commits []*git.Commit) (string, bool) {
 		bumpHash = c.Hash
 	}
 
-	return bumpHash, bumpHash != ""
+	return bumpHash
 }
 
 type BumperOption func(b *Bumper)
