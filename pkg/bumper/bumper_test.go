@@ -42,6 +42,19 @@ var _ = Describe("Bumper", func() {
 		Expect(stc.acceptedRequests).To(ConsistOf(55555555, 88888888))
 	})
 
+	It("doesn't fail when there are no commits in the range", func() {
+		stc := &spyTrackerClient{}
+		sgc := &spyGitClient{}
+
+		b := bumper.New("master..release-elect", &spyLogger{},
+			bumper.WithGitClient(sgc),
+			bumper.WithTrackerClient(stc),
+		)
+
+		sha := b.FindBumpSHA()
+		Expect(sha).To(Equal(""))
+	})
+
 	It("logs information about commits", func() {
 		sl := &spyLogger{}
 		stc := &spyTrackerClient{

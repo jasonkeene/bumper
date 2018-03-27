@@ -43,7 +43,7 @@ func (b Bumper) FindBumpSHA() string {
 	b.log.Header(b.commitRange)
 
 	commitsDesc, err := b.gc.Commits(b.commitRange)
-	if err != nil {
+	if err != nil || len(commitsDesc) == 0 {
 		b.log.Footer("")
 		return ""
 	}
