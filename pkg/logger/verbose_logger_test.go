@@ -20,7 +20,7 @@ var _ = Describe("VerboseLogger", func() {
 	BeforeEach(func() {
 		buf = bytes.NewBuffer(nil)
 		vl = logger.NewVerboseLogger(
-			logger.WithWriter(buf),
+			logger.WithVerboseWriter(buf),
 		)
 	})
 

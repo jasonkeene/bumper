@@ -62,7 +62,7 @@ func (l *VerboseLogger) Footer(bumpSHA string) {
 
 type VerboseLoggerOption func(*VerboseLogger)
 
-func WithWriter(w io.Writer) VerboseLoggerOption {
+func WithVerboseWriter(w io.Writer) VerboseLoggerOption {
 	return func(l *VerboseLogger) {
 		l.writer = w
 	}

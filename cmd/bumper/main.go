@@ -39,7 +39,7 @@ func main() {
 
 	tc := tracker.NewClient()
 
-	var log bumper.Logger
+	var log bumper.Logger = logger.NewLogger()
 	if *verbose {
 		log = logger.NewVerboseLogger()
 	}
