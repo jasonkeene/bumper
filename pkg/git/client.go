@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	storyID         = regexp.MustCompile(`\[#(\d+)\]`)
+	storyID         = regexp.MustCompile(`\[(?:\w+ )?#(\d+)\]`)
 	submoduleCommit = regexp.MustCompile(`\+Subproject commit ([[:xdigit:]]+)\b`)
 )
 
