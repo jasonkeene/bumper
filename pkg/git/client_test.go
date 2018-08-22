@@ -13,13 +13,17 @@ var _ = Describe("Client", func() {
 	It("gets commits hashes for a given range", func() {
 		se := &stubCommandExecutor{
 			runResults: []runResult{
-				{output: "123456\n789abc\ndef123\n"},
+				{output: "f00dface\ndeadbeef\n123456\n789abc\ndef123\n"},
+				{output: "Fifth Commit [Delivers #55555555]\n"},
+				{output: "Fifth Commit [Delivers #55555555]\n"},
+				{output: "Fourth Commit [fixes #44444444]\n"},
+				{output: "Fourth Commit [fixes #44444444]\n"},
 				{output: "Third Commit\n"},
 				{output: "Third Commit\n\n[#33333333]\n"},
 				{output: "Second Commit\n"},
 				{output: "Second Commit\n\n[#22222222]\n"},
 				{output: "First Commit\n"},
-				{output: "First Commit\n\n[#11111111]\n"},
+				{output: "First Commit\n\n[finishes #11111111]\n"},
 			},
 		}
 		gc := git.NewClient(git.WithCommandExecutor(se))
@@ -27,32 +31,46 @@ var _ = Describe("Client", func() {
 		commits, err := gc.Commits("master..release-elect")
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(se.runCommands).To(HaveLen(7))
+		Expect(se.runCommands).To(HaveLen(11))
 		Expect(se.runCommands[0].Args).To(Equal([]string{
 			"git", "log", "--pretty=format:%H", "master..release-elect",
 		}))
 
 		Expect(se.runCommands[1].Args).To(Equal([]string{
-			"git", "show", "--no-patch", "--pretty=format:%s", "123456",
+			"git", "show", "--no-patch", "--pretty=format:%s", "f00dface",
 		}))
 		Expect(se.runCommands[2].Args).To(Equal([]string{
-			"git", "show", "--pretty=format:%B", "123456",
+			"git", "show", "--pretty=format:%B", "f00dface",
 		}))
 		Expect(se.runCommands[3].Args).To(Equal([]string{
-			"git", "show", "--no-patch", "--pretty=format:%s", "789abc",
+			"git", "show", "--no-patch", "--pretty=format:%s", "deadbeef",
 		}))
 		Expect(se.runCommands[4].Args).To(Equal([]string{
-			"git", "show", "--pretty=format:%B", "789abc",
+			"git", "show", "--pretty=format:%B", "deadbeef",
 		}))
 		Expect(se.runCommands[5].Args).To(Equal([]string{
-			"git", "show", "--no-patch", "--pretty=format:%s", "def123",
+			"git", "show", "--no-patch", "--pretty=format:%s", "123456",
 		}))
 		Expect(se.runCommands[6].Args).To(Equal([]string{
+			"git", "show", "--pretty=format:%B", "123456",
+		}))
+		Expect(se.runCommands[7].Args).To(Equal([]string{
+			"git", "show", "--no-patch", "--pretty=format:%s", "789abc",
+		}))
+		Expect(se.runCommands[8].Args).To(Equal([]string{
+			"git", "show", "--pretty=format:%B", "789abc",
+		}))
+		Expect(se.runCommands[9].Args).To(Equal([]string{
+			"git", "show", "--no-patch", "--pretty=format:%s", "def123",
+		}))
+		Expect(se.runCommands[10].Args).To(Equal([]string{
 			"git", "show", "--pretty=format:%B", "def123",
 		}))
 
-		Expect(commits).To(HaveLen(3))
+		Expect(commits).To(HaveLen(5))
 		Expect(commits).To(Equal([]*git.Commit{
+			{Hash: "f00dface", Subject: "Fifth Commit [Delivers #55555555]\n", StoryID: 55555555},
+			{Hash: "deadbeef", Subject: "Fourth Commit [fixes #44444444]\n", StoryID: 44444444},
 			{Hash: "123456", Subject: "Third Commit\n", StoryID: 33333333},
 			{Hash: "789abc", Subject: "Second Commit\n", StoryID: 22222222},
 			{Hash: "def123", Subject: "First Commit\n", StoryID: 11111111},
