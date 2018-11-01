@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"strings"
@@ -37,7 +39,14 @@ func main() {
 		git.WithFollowBumpsOf(submodulePaths...),
 	)
 
-	tc := tracker.NewClient()
+	var httpClient tracker.HTTPClient = http.DefaultClient
+
+	apiToken := os.Getenv("TRACKER_API_TOKEN")
+	if apiToken != "" {
+		httpClient = tracker.NewAPIHTTPClient(http.DefaultClient, apiToken)
+	}
+
+	tc := tracker.NewClient(tracker.WithHTTPClient(httpClient))
 
 	var log bumper.Logger = logger.NewLogger()
 	if *verbose {
@@ -54,5 +63,18 @@ func main() {
 type cmdExecutor struct{}
 
 func (c cmdExecutor) Run(cmd *exec.Cmd) error {
-	return cmd.Run()
+	stderrBuf := &strings.Builder{}
+	cmd.Stderr = stderrBuf
+	err := cmd.Run()
+
+	if err != nil {
+		return fmt.Errorf(
+			`failed to execute "%s": %s (stderr: "%s")`,
+			strings.Join(cmd.Args, " "),
+			err,
+			strings.TrimRight(stderrBuf.String(), "\r\n"),
+		)
+	}
+
+	return nil
 }
