@@ -59,7 +59,7 @@ func (c Client) story(storyID int) story {
 
 	err = json.NewDecoder(resp.Body).Decode(&s)
 	if err != nil {
-		log.Fatalf("failed to unmarshal story: %s")
+		log.Fatalf("failed to unmarshal story: %s", err)
 	}
 
 	c.cache[storyID] = s
