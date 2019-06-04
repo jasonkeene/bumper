@@ -31,12 +31,13 @@ var _ = Describe("Bumper", func() {
 			},
 		}
 
-		b := bumper.New("master..release-elect", &spyLogger{},
+		sl := &spyLogger{}
+		b := bumper.New("master..release-elect", sl,
 			bumper.WithGitClient(sgc),
 			bumper.WithTrackerClient(stc),
 		)
-		sha := b.FindBumpSHA()
-		Expect(sha).To(Equal("789abc"))
+		Expect(b.FindBumpSHA()).To(Succeed())
+		Expect(sl.bumpSHA).To(Equal("789abc"))
 
 		Expect(sgc.commitsRange).To(Equal("master..release-elect"))
 		Expect(stc.acceptedRequests).To(ConsistOf(55555555, 88888888))
@@ -46,13 +47,14 @@ var _ = Describe("Bumper", func() {
 		stc := &spyTrackerClient{}
 		sgc := &spyGitClient{}
 
-		b := bumper.New("master..release-elect", &spyLogger{},
+		sl := &spyLogger{}
+		b := bumper.New("master..release-elect", sl,
 			bumper.WithGitClient(sgc),
 			bumper.WithTrackerClient(stc),
 		)
 
-		sha := b.FindBumpSHA()
-		Expect(sha).To(Equal(""))
+		Expect(b.FindBumpSHA()).To(Succeed())
+		Expect(sl.bumpSHA).To(Equal(""))
 	})
 
 	It("logs information about commits", func() {
@@ -81,7 +83,7 @@ var _ = Describe("Bumper", func() {
 			bumper.WithTrackerClient(stc),
 		)
 
-		_ = b.FindBumpSHA()
+		Expect(b.FindBumpSHA()).To(Succeed())
 
 		Expect(sl.headerCommitRange).To(Equal("master..release-elect"))
 		Expect(sl.commits).To(Equal([]*git.Commit{
@@ -138,8 +140,8 @@ var _ = Describe("Bumper", func() {
 			bumper.WithGitClient(sgc),
 			bumper.WithTrackerClient(stc),
 		)
-		sha := b.FindBumpSHA()
-		Expect(sha).To(Equal(""))
+		Expect(b.FindBumpSHA()).To(Succeed())
+		Expect(sl.bumpSHA).To(Equal(""))
 		Expect(sl.footerCalled).To(BeTrue())
 		Expect(sl.bumpSHA).To(Equal(""))
 
@@ -156,11 +158,10 @@ var _ = Describe("Bumper", func() {
 		b := bumper.New("master..release-elect", sl,
 			bumper.WithGitClient(sgc),
 		)
-		sha := b.FindBumpSHA()
-		Expect(sha).To(Equal(""))
 
-		Expect(sl.footerCalled).To(BeTrue())
+		Expect(b.FindBumpSHA()).ToNot(Succeed())
 		Expect(sl.bumpSHA).To(Equal(""))
+		Expect(sl.footerCalled).To(BeFalse())
 	})
 })
 

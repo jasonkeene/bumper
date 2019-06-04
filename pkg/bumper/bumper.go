@@ -1,8 +1,6 @@
 package bumper
 
 import (
-	"log"
-
 	"github.com/loggregator/bumper/pkg/git"
 )
 
@@ -41,17 +39,17 @@ func New(commitRange string, log Logger, opts ...BumperOption) Bumper {
 	return b
 }
 
-func (b Bumper) FindBumpSHA() string {
+func (b Bumper) FindBumpSHA() error {
 	b.log.Header(b.commitRange)
 
 	commitsDesc, err := b.gc.Commits(b.commitRange)
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
 	if len(commitsDesc) == 0 {
 		b.log.Footer("")
-		return ""
+		return nil
 	}
 
 	for _, c := range commitsDesc {
@@ -65,7 +63,7 @@ func (b Bumper) FindBumpSHA() string {
 
 	sha := findBump(reverse(commitsDesc))
 	b.log.Footer(sha)
-	return sha
+	return nil
 }
 
 func reverse(commits []*git.Commit) []*git.Commit {

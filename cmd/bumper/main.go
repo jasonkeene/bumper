@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"log"
 
 	"github.com/loggregator/bumper/pkg/bumper"
 	"github.com/loggregator/bumper/pkg/git"
@@ -48,16 +49,19 @@ func main() {
 
 	tc := tracker.NewClient(tracker.WithHTTPClient(httpClient))
 
-	var log bumper.Logger = logger.NewLogger()
+	var bumperLog bumper.Logger = logger.NewLogger()
 	if *verbose {
-		log = logger.NewVerboseLogger()
+		bumperLog = logger.NewVerboseLogger()
 	}
 
-	b := bumper.New(*commitRange, log,
+	b := bumper.New(*commitRange, bumperLog,
 		bumper.WithGitClient(gc),
 		bumper.WithTrackerClient(tc),
 	)
-	b.FindBumpSHA()
+	err := b.FindBumpSHA()
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 type cmdExecutor struct{}
