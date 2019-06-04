@@ -9,7 +9,8 @@ import (
 )
 
 type VerboseLogger struct {
-	writer io.Writer
+	writer       io.Writer
+	disableColor bool
 }
 
 func NewVerboseLogger(opts ...VerboseLoggerOption) *VerboseLogger {
@@ -28,7 +29,7 @@ func (l *VerboseLogger) Header(commitRange string) {
 	fmt.Fprintln(
 		l.writer,
 		"Bumping the following range of commits:",
-		extraRed(commitRange),
+		l.extraRed(commitRange),
 	)
 	fmt.Fprintln(l.writer)
 }
@@ -41,10 +42,10 @@ func (l *VerboseLogger) Commit(c *git.Commit) {
 
 	fmt.Fprintln(
 		l.writer,
-		formatAccepted(c),
-		yellow(c.ShortSHA()),
+		l.formatAccepted(c),
+		l.yellow(c.ShortSHA()),
 		c.FormatSubject(40),
-		blue(storyID),
+		l.blue(storyID),
 		c.StoryName,
 	)
 }
@@ -57,7 +58,7 @@ func (l *VerboseLogger) Footer(bumpSHA string) {
 		return
 	}
 
-	fmt.Fprintln(l.writer, "This is the commit you should bump to:", extraRed(bumpSHA))
+	fmt.Fprintln(l.writer, "This is the commit you should bump to:", l.extraRed(bumpSHA))
 }
 
 type VerboseLoggerOption func(*VerboseLogger)
@@ -68,30 +69,56 @@ func WithVerboseWriter(w io.Writer) VerboseLoggerOption {
 	}
 }
 
-func formatAccepted(c *git.Commit) string {
-	if c.Accepted || c.StoryID == 0 {
-		return green("✓")
+func WithColorDisabled() VerboseLoggerOption {
+	return func(l *VerboseLogger) {
+		l.disableColor = true
 	}
-
-	return red("✗")
 }
 
-func red(s string) string {
+func (l *VerboseLogger) formatAccepted(c *git.Commit) string {
+	if c.Accepted || c.StoryID == 0 {
+		return l.green("✓")
+	}
+
+	return l.red("✗")
+}
+
+func (l *VerboseLogger) red(s string) string {
+	if l.disableColor {
+		return s
+	}
+
 	return "\033[202m" + s + "\033[0m"
 }
 
-func extraRed(s string) string {
+func (l *VerboseLogger) extraRed(s string) string {
+	if l.disableColor {
+		return s
+	}
+
 	return "\033[222m" + s + "\033[0m"
 }
 
-func green(s string) string {
+func (l *VerboseLogger) green(s string) string {
+	if l.disableColor {
+		return s
+	}
+
 	return "\033[32m" + s + "\033[0m"
 }
 
-func blue(s string) string {
+func (l *VerboseLogger) blue(s string) string {
+	if l.disableColor {
+		return s
+	}
+
 	return "\033[34m" + s + "\033[0m"
 }
 
-func yellow(s string) string {
+func (l *VerboseLogger) yellow(s string) string {
+	if l.disableColor {
+		return s
+	}
+
 	return "\033[33m" + s + "\033[0m"
 }

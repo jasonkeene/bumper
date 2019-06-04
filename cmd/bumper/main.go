@@ -26,6 +26,11 @@ func main() {
 		false,
 		"Output all the information.",
 	)
+	disableColor := flag.Bool(
+		"no-color",
+		false,
+		"Disable color.",
+	)
 
 	flag.Parse()
 
@@ -51,7 +56,12 @@ func main() {
 
 	var bumperLog bumper.Logger = logger.NewLogger()
 	if *verbose {
-		bumperLog = logger.NewVerboseLogger()
+		var opts []logger.VerboseLoggerOption
+		if *disableColor {
+			opts = append(opts, logger.WithColorDisabled())
+		}
+
+		bumperLog = logger.NewVerboseLogger(opts...)
 	}
 
 	b := bumper.New(*commitRange, bumperLog,

@@ -26,7 +26,6 @@ var _ = Describe("VerboseLogger", func() {
 
 	Describe("Header", func() {
 		It("logs the commit range header", func() {
-
 			vl.Header("master..release-elect")
 			Expect(strings.Split(buf.String(), "\n")).To(Equal([]string{
 				"Bumping the following range of commits: \033[222mmaster..release-elect\033[0m",
@@ -77,6 +76,33 @@ var _ = Describe("VerboseLogger", func() {
 				"",
 			}))
 		})
+	})
+
+	It("does not print color if color is disabled", func() {
+		vl = logger.NewVerboseLogger(
+			logger.WithVerboseWriter(buf),
+			logger.WithColorDisabled(),
+		)
+
+
+
+		vl.Header("master..release-elect")
+		vl.Commit(&git.Commit{
+			Hash:     "ABC123DEF456",
+			Subject:  "Update bumper to be awesome",
+			StoryID:  0,
+			Accepted: false,
+		})
+		vl.Footer("abc123")
+
+		Expect(strings.Split(buf.String(), "\n")).To(Equal([]string{
+			"Bumping the following range of commits: master..release-elect",
+			"",
+			"✓ ABC123DE Update bumper to be awesome              ~~~~~~~~~ ",
+			"",
+			"This is the commit you should bump to: abc123",
+			"",
+		}))
 	})
 
 	Describe("Footer", func() {
