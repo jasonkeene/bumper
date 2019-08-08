@@ -79,7 +79,13 @@ func (c GitClient) buildCommit(sha string) (*Commit, error) {
 		return nil, err
 	}
 
-	storyID := c.getStoryID(idBuf.String())
+	commitMsgBuf := bytes.NewBuffer(nil)
+	err = c.execute(commitMsgBuf, "git", "log", "-n", "1", sha)
+	if err != nil {
+		return nil, err
+	}
+
+	storyID := c.getStoryID(commitMsgBuf.String())
 	commit := &Commit{
 		Hash:    sha,
 		Subject: subBuf.String(),
@@ -101,6 +107,9 @@ func (c GitClient) getStoryID(body string) int {
 		return 0
 	}
 	storyID := result[1]
+	if strings.Contains(body, "bump prometheus") {
+		println("storyID: " + storyID)
+	}
 	id, err := strconv.Atoi(storyID)
 	if err != nil {
 		return 0
